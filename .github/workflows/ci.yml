@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.goos }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: windows
+            gotest: false   # the witness needs a real desktop; see PORTING.md
+          - goos: linux
+            gotest: false   # stubs return ErrUnsupported; tests assert that
+          - goos: darwin
+            gotest: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      # Cross-compile every target so a platform that stops building is caught
+      # here rather than in someone's port. CGO stays off: the Windows backend
+      # uses syscall directly and the non-Windows stubs need nothing.
+      - name: Build (${{ matrix.goos }})
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+        run: go build ./...
+
+      - name: Vet (${{ matrix.goos }})
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+        run: go vet ./...
+
+  test:
+    name: test (${{ matrix.goos }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, darwin]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      # On non-Windows targets the platform layer is stubbed, so these tests
+      # assert the stub contract: an unimplemented witness fails LOUDLY instead
+      # of reporting a plausible pointer position. The frame-layout and motion
+      # shaper tests are OS-independent and run here too - they need no hardware.
+      - name: Test (${{ matrix.goos }})
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+        run: |
+          go test ./... 2>&1 || {
+            echo "::error::tests failed for $GOOS"
+            exit 1
+          }
+
+  fmt:
+    name: gofmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::these files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi

@@ -1,0 +1,24 @@
+# Build output
+*.exe
+*.dll
+*.so
+*.dylib
+ch9329ctl
+
+# Session scratch / quarantine — never part of the source tree
+_scratch/
+_scratch-ch9329-repo/
+.tmp-run*/
+
+# mycc runtime state
+.mycc/
+
+# Python bytecode from the optional capture probes
+__pycache__/
+*.pyc
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
